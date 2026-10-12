@@ -131,4 +131,33 @@ class ChainStateViewModelTest {
     assertEquals("0xabc", details?.hash)
     assertEquals("0x15d4872", details?.blockNumber)
   }
+
+  @Test
+  fun `verify 10 second periodic polling mechanism`() = runTest {
+    val fakeService = FakeBaseRpcService()
+    val viewModel = ChainStateViewModel(rpcService = fakeService)
+
+    // Check polling is active by default with 10s interval
+    assertEquals(true, viewModel.isPollingActive.value)
+    assertEquals(10_000L, viewModel.pollingIntervalMs.value)
+
+    testDispatcher.scheduler.advanceUntilIdle()
+    val initialLastUpdated = viewModel.lastUpdated.value
+
+    // Advance virtual time by 10 seconds (10,000ms) to trigger next polling cycle
+    testDispatcher.scheduler.advanceTimeBy(10_000L)
+    testDispatcher.scheduler.advanceUntilIdle()
+
+    // Verify polling refreshed data
+    assertEquals(22890610L, viewModel.currentBlockNumber.value)
+    assertEquals(1.0, viewModel.gasPriceGwei.value ?: 0.0, 0.0001)
+
+    // Stop polling
+    viewModel.stopPeriodicPolling()
+    assertEquals(false, viewModel.isPollingActive.value)
+
+    // Restart polling
+    viewModel.startPeriodicPolling(10_000L)
+    assertEquals(true, viewModel.isPollingActive.value)
+  }
 }

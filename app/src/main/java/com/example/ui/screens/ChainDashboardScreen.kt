@@ -97,7 +97,8 @@ fun ChainDashboardScreen(
   val isLoading by viewModel.isLoading.collectAsState()
   val error by viewModel.errorMessage.collectAsState()
 
-  var isLivePolling by remember { mutableStateOf(false) }
+  val isLivePolling by viewModel.isPollingActive.collectAsState()
+  val pollingIntervalMs by viewModel.pollingIntervalMs.collectAsState()
 
   LazyColumn(
     modifier = modifier
@@ -151,16 +152,15 @@ fun ChainDashboardScreen(
 
               Button(
                 onClick = {
-                  isLivePolling = !isLivePolling
                   if (isLivePolling) {
-                    viewModel.startPolling(2500L)
+                    viewModel.stopPeriodicPolling()
                   } else {
-                    viewModel.stopPolling()
+                    viewModel.startPeriodicPolling(10_000L)
                   }
                 },
                 colors = ButtonDefaults.buttonColors(
-                  containerColor = if (isLivePolling) OpRed.copy(alpha = 0.2f) else BaseBlue.copy(alpha = 0.25f),
-                  contentColor = if (isLivePolling) OpRed else BaseCyan
+                  containerColor = if (isLivePolling) AccentGreen.copy(alpha = 0.2f) else DarkSurfaceElevated,
+                  contentColor = if (isLivePolling) AccentGreen else TextSecondary
                 ),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.height(34.dp)
@@ -171,7 +171,11 @@ fun ChainDashboardScreen(
                   modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isLivePolling) "Live Active" else "Poll Live", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(
+                  text = if (isLivePolling) "10s Polling" else "Poll (10s)",
+                  fontSize = 11.sp,
+                  fontWeight = FontWeight.Bold
+                )
               }
             }
           }

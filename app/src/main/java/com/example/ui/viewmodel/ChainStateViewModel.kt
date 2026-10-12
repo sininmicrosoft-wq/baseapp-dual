@@ -32,11 +32,17 @@ data class BlockTrendPoint(
 
 /**
  * ViewModel managing the state of network data fetched via BaseRpcService,
- * including current block number, gas price, transaction details, and historical trends.
+ * including an automatic periodic polling mechanism (every 10 seconds)
+ * that refreshes the block number and gas price data.
  */
 class ChainStateViewModel(
   private val rpcService: BaseRpcService = RetrofitClient.baseRpcService
 ) : ViewModel() {
+
+  companion object {
+    /** Default automatic polling interval set to 10 seconds (10,000ms) */
+    const val DEFAULT_POLLING_INTERVAL_MS: Long = 10_000L
+  }
 
   // Current Block Number (decoded Long)
   private val _currentBlockNumber = MutableStateFlow<Long?>(null)
@@ -50,7 +56,7 @@ class ChainStateViewModel(
   private val _gasPriceWei = MutableStateFlow<BigInteger?>(null)
   val gasPriceWei: StateFlow<BigInteger?> = _gasPriceWei.asStateFlow()
 
-  // Historical gas price trend points for Recharts-style visualization
+  // Historical gas price trend points for visualization
   private val _gasPriceHistory = MutableStateFlow<List<GasPricePoint>>(emptyList())
   val gasPriceHistory: StateFlow<List<GasPricePoint>> = _gasPriceHistory.asStateFlow()
 
@@ -74,12 +80,20 @@ class ChainStateViewModel(
   private val _lastUpdated = MutableStateFlow<Long>(0L)
   val lastUpdated: StateFlow<Long> = _lastUpdated.asStateFlow()
 
+  // Polling state controls
+  private val _isPollingActive = MutableStateFlow(true)
+  val isPollingActive: StateFlow<Boolean> = _isPollingActive.asStateFlow()
+
+  private val _pollingIntervalMs = MutableStateFlow(DEFAULT_POLLING_INTERVAL_MS)
+  val pollingIntervalMs: StateFlow<Long> = _pollingIntervalMs.asStateFlow()
+
   // Active polling coroutine job
   private var pollingJob: Job? = null
 
   init {
     seedInitialTrends()
-    fetchChainData()
+    // Automatically start 10-second periodic polling on initialization
+    startPeriodicPolling(DEFAULT_POLLING_INTERVAL_MS)
   }
 
   private fun seedInitialTrends() {
@@ -92,7 +106,7 @@ class ChainStateViewModel(
     val txCounts = listOf(45, 62, 58, 89, 110, 74, 53, 48, 67, 85, 71)
 
     for (i in gasValues.indices) {
-      val time = now - (gasValues.size - 1 - i) * 3000L
+      val time = now - (gasValues.size - 1 - i) * DEFAULT_POLLING_INTERVAL_MS
       val block = baseBlock - (gasValues.size - 1 - i)
       val gas = gasValues[i]
       seededGas.add(
@@ -100,7 +114,7 @@ class ChainStateViewModel(
           timestampMs = time,
           gasPriceGwei = gas,
           blockNumber = block,
-          label = "-${(gasValues.size - 1 - i) * 3}s"
+          label = "-${(gasValues.size - 1 - i) * 10}s"
         )
       )
       seededBlocks.add(
@@ -115,6 +129,44 @@ class ChainStateViewModel(
 
     _gasPriceHistory.value = seededGas
     _blockHistory.value = seededBlocks
+  }
+
+  /**
+   * Starts periodic polling (default: every 10 seconds) that automatically
+   * fetches fresh block height and gas price data from BaseRpcService.
+   */
+  fun startPeriodicPolling(
+    intervalMs: Long = DEFAULT_POLLING_INTERVAL_MS,
+    rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL
+  ) {
+    _pollingIntervalMs.value = intervalMs
+    _isPollingActive.value = true
+    pollingJob?.cancel()
+    pollingJob = viewModelScope.launch {
+      while (true) {
+        fetchChainData(rpcUrl)
+        delay(intervalMs)
+      }
+    }
+  }
+
+  /**
+   * Stops the automatic periodic polling mechanism.
+   */
+  fun stopPeriodicPolling() {
+    pollingJob?.cancel()
+    pollingJob = null
+    _isPollingActive.value = false
+  }
+
+  /** Alias for startPeriodicPolling */
+  fun startPolling(intervalMs: Long = DEFAULT_POLLING_INTERVAL_MS, rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+    startPeriodicPolling(intervalMs, rpcUrl)
+  }
+
+  /** Alias for stopPeriodicPolling */
+  fun stopPolling() {
+    stopPeriodicPolling()
   }
 
   /**
@@ -284,30 +336,9 @@ class ChainStateViewModel(
     }
   }
 
-  /**
-   * Starts periodic polling for live block number and gas price.
-   */
-  fun startPolling(intervalMs: Long = 3000L, rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
-    pollingJob?.cancel()
-    pollingJob = viewModelScope.launch {
-      while (true) {
-        fetchChainData(rpcUrl)
-        delay(intervalMs)
-      }
-    }
-  }
-
-  /**
-   * Stops periodic polling.
-   */
-  fun stopPolling() {
-    pollingJob?.cancel()
-    pollingJob = null
-  }
-
   override fun onCleared() {
     super.onCleared()
-    stopPolling()
+    stopPeriodicPolling()
   }
 
   private fun parseHexToLong(hex: String): Long {
