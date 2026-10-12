@@ -62,14 +62,11 @@ class BaseNetworkClient(
   val rpcService: BaseRpcService = retrofit.create(BaseRpcService::class.java)
 
   /**
-   * Fetches latest block height from the given Base Chain RPC URL via getBlockHeight.
+   * Fetches latest block height from the given Base Chain RPC URL via eth_blockNumber.
    */
   suspend fun fetchBlockNumber(rpcUrl: String): Result<Long> = withContext(Dispatchers.IO) {
     try {
-      val response = rpcService.getBlockHeight(
-        url = rpcUrl,
-        request = JsonRpcRequest(method = "eth_blockNumber", params = emptyList())
-      )
+      val response = rpcService.eth_blockNumber(url = rpcUrl)
 
       if (response.isSuccessful) {
         val resultHex = response.body()?.result
@@ -88,14 +85,11 @@ class BaseNetworkClient(
   }
 
   /**
-   * Fetches current L2 gas price in Gwei from the given Base Chain RPC URL via getGasPrice.
+   * Fetches current L2 gas price in Gwei from the given Base Chain RPC URL via eth_gasPrice.
    */
   suspend fun fetchGasPriceGwei(rpcUrl: String): Result<Double> = withContext(Dispatchers.IO) {
     try {
-      val response = rpcService.getGasPrice(
-        url = rpcUrl,
-        request = JsonRpcRequest(method = "eth_gasPrice", params = emptyList())
-      )
+      val response = rpcService.eth_gasPrice(url = rpcUrl)
 
       if (response.isSuccessful) {
         val resultHex = response.body()?.result
@@ -115,11 +109,11 @@ class BaseNetworkClient(
   }
 
   /**
-   * Fetches complete transaction details by hash via getTransactionByHash.
+   * Fetches complete transaction details by hash via eth_getTransactionByHash.
    */
   suspend fun fetchTransactionByHash(rpcUrl: String, txHash: String): Result<TransactionRpcDetails> = withContext(Dispatchers.IO) {
     try {
-      val response = rpcService.getTransactionByHash(
+      val response = rpcService.eth_getTransactionByHash(
         url = rpcUrl,
         request = JsonRpcRequest(method = "eth_getTransactionByHash", params = listOf(txHash))
       )

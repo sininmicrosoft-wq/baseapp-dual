@@ -130,6 +130,9 @@ class BaseRpcClientTest {
     // Check that BaseRpcService has expected endpoints declared
     val serviceClass = BaseRpcService::class.java
     val methodNames = serviceClass.methods.map { it.name }
+    assertTrue(methodNames.contains("eth_blockNumber"))
+    assertTrue(methodNames.contains("eth_gasPrice"))
+    assertTrue(methodNames.contains("eth_getTransactionByHash"))
     assertTrue(methodNames.contains("getBlockHeight"))
     assertTrue(methodNames.contains("getGasPrice"))
     assertTrue(methodNames.contains("getTransactionByHash"))

@@ -12,95 +12,94 @@ import retrofit2.http.POST
 import retrofit2.http.Url
 
 /**
- * Retrofit service interface defining endpoints for querying Base Chain and OP Superchain
- * JSON-RPC nodes for block height, gas prices, transaction details, and account data.
+ * Retrofit service interface defining JSON-RPC methods for Base Chain endpoints,
+ * specifically providing eth_blockNumber, eth_gasPrice, and eth_getTransactionByHash.
  */
 interface BaseRpcService {
 
-  // ==========================================
-  // 1. BLOCK HEIGHT & BLOCK DETAILS
-  // ==========================================
+  // ========================================================
+  // 1. eth_blockNumber (Current Block Height)
+  // ========================================================
 
   /**
-   * Fetches latest block height (eth_blockNumber) returning hex string (e.g. "0x15d4872").
+   * Invokes eth_blockNumber on the default Base Chain endpoint.
+   */
+  @POST("/")
+  suspend fun eth_blockNumber(
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_blockNumber")
+  ): Response<JsonRpcResponse<String>>
+
+  /**
+   * Invokes eth_blockNumber on a specific dynamic Base Chain / OP Stack RPC URL.
+   */
+  @POST
+  suspend fun eth_blockNumber(
+    @Url url: String,
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_blockNumber")
+  ): Response<JsonRpcResponse<String>>
+
+  /**
+   * Alias: getBlockHeight with dynamic RPC URL.
    */
   @POST
   suspend fun getBlockHeight(
     @Url url: String,
-    @Body request: JsonRpcRequest
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_blockNumber")
   ): Response<JsonRpcResponse<String>>
 
+  // ========================================================
+  // 2. eth_gasPrice (Current L2 Gas Price)
+  // ========================================================
+
   /**
-   * Default path variant for getBlockHeight.
+   * Invokes eth_gasPrice on the default Base Chain endpoint.
    */
   @POST("/")
-  suspend fun getBlockHeightDefault(
-    @Body request: JsonRpcRequest
+  suspend fun eth_gasPrice(
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_gasPrice")
   ): Response<JsonRpcResponse<String>>
 
   /**
-   * Fetches block data by block number or tag (eth_getBlockByNumber).
+   * Invokes eth_gasPrice on a specific dynamic Base Chain / OP Stack RPC URL.
    */
   @POST
-  suspend fun getBlockByNumber(
+  suspend fun eth_gasPrice(
     @Url url: String,
-    @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<BlockRpcDetails>>
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_gasPrice")
+  ): Response<JsonRpcResponse<String>>
 
   /**
-   * Fetches block data by block hash (eth_getBlockByHash).
-   */
-  @POST
-  suspend fun getBlockByHash(
-    @Url url: String,
-    @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<BlockRpcDetails>>
-
-  // ==========================================
-  // 2. GAS PRICES & FEE ESTIMATION
-  // ==========================================
-
-  /**
-   * Fetches current gas price in Wei (eth_gasPrice) returning hex string.
+   * Alias: getGasPrice with dynamic RPC URL.
    */
   @POST
   suspend fun getGasPrice(
     @Url url: String,
-    @Body request: JsonRpcRequest
+    @Body request: JsonRpcRequest = JsonRpcRequest(method = "eth_gasPrice")
   ): Response<JsonRpcResponse<String>>
 
+  // ========================================================
+  // 3. eth_getTransactionByHash (Transaction Details)
+  // ========================================================
+
   /**
-   * Default path variant for getGasPrice.
+   * Invokes eth_getTransactionByHash on the default Base Chain endpoint.
    */
   @POST("/")
-  suspend fun getGasPriceDefault(
+  suspend fun eth_getTransactionByHash(
     @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<String>>
+  ): Response<JsonRpcResponse<TransactionRpcDetails>>
 
   /**
-   * Fetches current max priority fee per gas (eth_maxPriorityFeePerGas) for EIP-1559 on Base.
+   * Invokes eth_getTransactionByHash on a specific dynamic Base Chain RPC URL.
    */
   @POST
-  suspend fun getMaxPriorityFeePerGas(
+  suspend fun eth_getTransactionByHash(
     @Url url: String,
     @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<String>>
+  ): Response<JsonRpcResponse<TransactionRpcDetails>>
 
   /**
-   * Estimates gas units required to execute a transaction (eth_estimateGas).
-   */
-  @POST
-  suspend fun estimateGas(
-    @Url url: String,
-    @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<String>>
-
-  // ==========================================
-  // 3. TRANSACTION DETAILS & RECEIPTS
-  // ==========================================
-
-  /**
-   * Fetches complete transaction object by 32-byte tx hash (eth_getTransactionByHash).
+   * Alias: getTransactionByHash with dynamic RPC URL.
    */
   @POST
   suspend fun getTransactionByHash(
@@ -108,8 +107,12 @@ interface BaseRpcService {
     @Body request: JsonRpcRequest
   ): Response<JsonRpcResponse<TransactionRpcDetails>>
 
+  // ========================================================
+  // 4. ADDITIONAL BASE CHAIN RPC ENDPOINTS
+  // ========================================================
+
   /**
-   * Fetches transaction receipt status and execution gas (eth_getTransactionReceipt).
+   * Invokes eth_getTransactionReceipt to inspect transaction status and gas used.
    */
   @POST
   suspend fun getTransactionReceipt(
@@ -118,20 +121,16 @@ interface BaseRpcService {
   ): Response<JsonRpcResponse<TransactionReceiptRpcDetails>>
 
   /**
-   * Fetches account nonce / tx count (eth_getTransactionCount).
+   * Invokes eth_getBlockByNumber to fetch block metadata and transactions.
    */
   @POST
-  suspend fun getTransactionCount(
+  suspend fun getBlockByNumber(
     @Url url: String,
     @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<String>>
-
-  // ==========================================
-  // 4. ACCOUNT, CHAIN & PROTOCOL STATE
-  // ==========================================
+  ): Response<JsonRpcResponse<BlockRpcDetails>>
 
   /**
-   * Fetches native balance in Wei (eth_getBalance) for an account address on Base.
+   * Invokes eth_getBalance to query native ETH balance.
    */
   @POST
   suspend fun getBalance(
@@ -140,7 +139,7 @@ interface BaseRpcService {
   ): Response<JsonRpcResponse<String>>
 
   /**
-   * Fetches EIP-155 chain ID (eth_chainId, e.g. 8453 for Base Mainnet, 84532 for Base Sepolia).
+   * Invokes eth_chainId to query chain ID.
    */
   @POST
   suspend fun getChainId(
@@ -148,34 +147,21 @@ interface BaseRpcService {
     @Body request: JsonRpcRequest
   ): Response<JsonRpcResponse<String>>
 
-  // ==========================================
-  // 5. GENERIC & RAW DISPATCH
-  // ==========================================
-
   /**
-   * Dispatches a JSON-RPC request expecting a String result.
-   */
-  @POST
-  suspend fun callStringRpc(
-    @Url url: String,
-    @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<String>>
-
-  /**
-   * Dispatches a JSON-RPC request expecting a generic/structured result.
-   */
-  @POST
-  suspend fun callGenericRpc(
-    @Url url: String,
-    @Body request: JsonRpcRequest
-  ): Response<JsonRpcResponse<Any>>
-
-  /**
-   * Dispatches a JSON-RPC request and returns raw ResponseBody for terminal inspection.
+   * Generic JSON-RPC dispatch with raw ResponseBody for terminal inspection.
    */
   @POST
   suspend fun callRawRpc(
     @Url url: String,
     @Body request: JsonRpcRequest
   ): Response<ResponseBody>
+
+  /**
+   * Generic JSON-RPC dispatch with parsed JsonRpcResponse<Any>.
+   */
+  @POST
+  suspend fun callGenericRpc(
+    @Url url: String,
+    @Body request: JsonRpcRequest
+  ): Response<JsonRpcResponse<Any>>
 }
