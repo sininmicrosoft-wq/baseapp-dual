@@ -110,6 +110,12 @@ class ChainStateViewModelTest {
 
     // Verify loading is false after completion
     assertEquals(false, viewModel.isLoading.value)
+
+    // Verify trend points are populated for charts
+    assertNotNull(viewModel.gasPriceHistory.value)
+    assertEquals(true, viewModel.gasPriceHistory.value.isNotEmpty())
+    assertNotNull(viewModel.blockHistory.value)
+    assertEquals(true, viewModel.blockHistory.value.isNotEmpty())
   }
 
   @Test

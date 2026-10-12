@@ -504,6 +504,7 @@ class BaseAppViewModel(application: Application) : AndroidViewModel(application)
 enum class AppTab(val title: String) {
   SOLUTIONS("Solutions"),
   CHAIN("Chain & RPC"),
-  SMART_WALLET("Smart Wallet"),
-  DEV_TOOLS("Dev Sandbox")
+  METRICS("Trends"),
+  SMART_WALLET("Wallet"),
+  DEV_TOOLS("Sandbox")
 }

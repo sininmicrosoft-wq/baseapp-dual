@@ -10,21 +10,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,10 +29,12 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -56,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.screens.ChainDashboardScreen
 import com.example.ui.screens.ChainMonitorScreen
 import com.example.ui.screens.DevToolsScreen
 import com.example.ui.screens.SmartWalletScreen
@@ -73,7 +72,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.viewmodel.AppTab
 import com.example.ui.viewmodel.BaseAppViewModel
-import java.util.Locale
+import com.example.ui.viewmodel.ChainStateViewModel
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,17 +80,23 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme(darkTheme = true) {
-        val viewModel: BaseAppViewModel = viewModel()
-        BaseAppRoot(viewModel = viewModel)
+        val baseAppViewModel: BaseAppViewModel = viewModel()
+        val chainStateViewModel: ChainStateViewModel = viewModel()
+        BaseAppRoot(
+          viewModel = baseAppViewModel,
+          chainStateViewModel = chainStateViewModel
+        )
       }
     }
   }
 }
 
 @Composable
-fun BaseAppRoot(viewModel: BaseAppViewModel) {
+fun BaseAppRoot(
+  viewModel: BaseAppViewModel,
+  chainStateViewModel: ChainStateViewModel = viewModel()
+) {
   val activeTab by viewModel.activeTab.collectAsState()
-  val selectedChain by viewModel.selectedChain.collectAsState()
   val latestBlock by viewModel.latestBlock.collectAsState()
 
   Scaffold(
@@ -211,7 +216,7 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
               contentDescription = "Solutions"
             )
           },
-          label = { Text("Solutions", fontSize = 11.sp) },
+          label = { Text("Solutions", fontSize = 10.sp) },
           colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Color.White,
             selectedTextColor = BaseCyan,
@@ -231,7 +236,7 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
               contentDescription = "Chain & RPC"
             )
           },
-          label = { Text("Chain & RPC", fontSize = 11.sp) },
+          label = { Text("Chain", fontSize = 10.sp) },
           colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Color.White,
             selectedTextColor = BaseCyan,
@@ -243,6 +248,26 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
         )
 
         NavigationBarItem(
+          selected = activeTab == AppTab.METRICS,
+          onClick = { viewModel.setTab(AppTab.METRICS) },
+          icon = {
+            Icon(
+              imageVector = if (activeTab == AppTab.METRICS) Icons.Filled.ShowChart else Icons.Outlined.ShowChart,
+              contentDescription = "Metrics"
+            )
+          },
+          label = { Text("Trends", fontSize = 10.sp) },
+          colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = Color.White,
+            selectedTextColor = BaseCyan,
+            indicatorColor = BaseBlue,
+            unselectedIconColor = TextSecondary,
+            unselectedTextColor = TextSecondary
+          ),
+          modifier = Modifier.testTag("nav_metrics")
+        )
+
+        NavigationBarItem(
           selected = activeTab == AppTab.SMART_WALLET,
           onClick = { viewModel.setTab(AppTab.SMART_WALLET) },
           icon = {
@@ -251,7 +276,7 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
               contentDescription = "Smart Wallet"
             )
           },
-          label = { Text("Wallet", fontSize = 11.sp) },
+          label = { Text("Wallet", fontSize = 10.sp) },
           colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Color.White,
             selectedTextColor = BaseCyan,
@@ -271,7 +296,7 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
               contentDescription = "Dev Sandbox"
             )
           },
-          label = { Text("Sandbox", fontSize = 11.sp) },
+          label = { Text("Sandbox", fontSize = 10.sp) },
           colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Color.White,
             selectedTextColor = BaseCyan,
@@ -297,6 +322,7 @@ fun BaseAppRoot(viewModel: BaseAppViewModel) {
         when (tab) {
           AppTab.SOLUTIONS -> SolutionsScreen(viewModel = viewModel)
           AppTab.CHAIN -> ChainMonitorScreen(viewModel = viewModel)
+          AppTab.METRICS -> ChainDashboardScreen(viewModel = chainStateViewModel)
           AppTab.SMART_WALLET -> SmartWalletScreen(viewModel = viewModel)
           AppTab.DEV_TOOLS -> DevToolsScreen(viewModel = viewModel)
         }
