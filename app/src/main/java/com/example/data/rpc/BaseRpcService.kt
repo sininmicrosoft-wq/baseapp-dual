@@ -166,7 +166,50 @@ interface BaseRpcService {
   ): Response<JsonRpcResponse<Any>>
 
   // ========================================================
-  // 5. NETWORK-AWARE HELPERS FOR BASE MAINNET & SEPOLIA
+  // 5. eth_call (Smart Contract Read & ERC-20 Balances)
+  // ========================================================
+
+  /**
+   * Invokes eth_call on the default Base Chain endpoint.
+   */
+  @POST("/")
+  suspend fun eth_call(
+    @Body request: JsonRpcRequest
+  ): Response<JsonRpcResponse<String>>
+
+  /**
+   * Invokes eth_call on a dynamic Base Chain / OP Stack RPC URL.
+   */
+  @POST
+  suspend fun eth_call(
+    @Url url: String,
+    @Body request: JsonRpcRequest
+  ): Response<JsonRpcResponse<String>>
+
+  /**
+   * Fetches an ERC-20 token balance for a given wallet address and contract address using eth_call.
+   * Encodes standard ERC-20 balanceOf(address) selector: 0x70a08231 + 32-byte padded address.
+   */
+  suspend fun getErc20Balance(
+    url: String,
+    contractAddress: String,
+    walletAddress: String
+  ): Response<JsonRpcResponse<String>> {
+    val cleanAddress = walletAddress.trim().removePrefix("0x").padStart(64, '0')
+    val callData = "0x70a08231$cleanAddress"
+    val callPayload = mapOf(
+      "to" to contractAddress.trim(),
+      "data" to callData
+    )
+    val request = JsonRpcRequest(
+      method = "eth_call",
+      params = listOf(callPayload, "latest")
+    )
+    return eth_call(url = url, request = request)
+  }
+
+  // ========================================================
+  // 6. NETWORK-AWARE HELPERS FOR BASE MAINNET & SEPOLIA
   // ========================================================
 
   /**
@@ -191,5 +234,19 @@ interface BaseRpcService {
     eth_getTransactionByHash(
       url = network.rpcUrl,
       request = JsonRpcRequest(method = "eth_getTransactionByHash", params = listOf(txHash))
+    )
+
+  /**
+   * Queries ERC-20 token balance dynamically targeting the specified BaseNetwork.
+   */
+  suspend fun getErc20Balance(
+    network: BaseNetwork,
+    contractAddress: String,
+    walletAddress: String
+  ): Response<JsonRpcResponse<String>> =
+    getErc20Balance(
+      url = network.rpcUrl,
+      contractAddress = contractAddress,
+      walletAddress = walletAddress
     )
 }

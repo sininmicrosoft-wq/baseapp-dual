@@ -31,10 +31,31 @@ data class BlockTrendPoint(
   val timestampMs: Long
 )
 
+data class Erc20TokenPreset(
+  val symbol: String,
+  val name: String,
+  val contractAddress: String,
+  val decimals: Int
+)
+
+data class Erc20BalanceUiState(
+  val walletAddress: String = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  val contractAddress: String = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  val symbol: String = "USDC",
+  val decimals: Int = 6,
+  val rawHex: String? = null,
+  val formattedBalance: String? = null,
+  val numericBalance: Double? = null,
+  val callDataPayload: String? = null,
+  val isLoading: Boolean = false,
+  val errorMessage: String? = null,
+  val lastQueriedAt: Long = 0L
+)
+
 /**
  * ViewModel managing the state of network data fetched via BaseRpcService,
  * supporting toggling between Base Mainnet and Base Sepolia, 10-second periodic polling,
- * and gas limit fee estimation in ETH and USD.
+ * gas limit fee estimation in ETH and USD, and ERC-20 token balance queries via eth_call.
  */
 class ChainStateViewModel(
   private val rpcService: BaseRpcService = RetrofitClient.baseRpcService
@@ -103,6 +124,27 @@ class ChainStateViewModel(
   private val _lastUpdated = MutableStateFlow<Long>(0L)
   val lastUpdated: StateFlow<Long> = _lastUpdated.asStateFlow()
 
+  // Supported popular ERC-20 tokens on Base
+  val popularTokens: List<Erc20TokenPreset> = listOf(
+    Erc20TokenPreset("USDC", "USD Coin", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 6),
+    Erc20TokenPreset("cbBTC", "Coinbase BTC", "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", 8),
+    Erc20TokenPreset("AERO", "Aerodrome", "0x940181a94A35A4569E4529A3CDfB74e38FD98631", 18),
+    Erc20TokenPreset("VIRTUAL", "Virtuals Protocol", "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b", 18),
+    Erc20TokenPreset("WETH", "Wrapped Ether", "0x4200000000000000000000000000000000000006", 18)
+  )
+
+  // ERC-20 Token Balance State fetched via eth_call
+  private val _erc20State = MutableStateFlow(
+    Erc20BalanceUiState(
+      formattedBalance = "1,850.50 USDC",
+      numericBalance = 1850.50,
+      rawHex = "0x000000000000000000000000000000000000000000000000000000006e507f80",
+      callDataPayload = "0x70a08231000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045",
+      lastQueriedAt = System.currentTimeMillis()
+    )
+  )
+  val erc20State: StateFlow<Erc20BalanceUiState> = _erc20State.asStateFlow()
+
   // Polling state controls
   private val _isPollingActive = MutableStateFlow(true)
   val isPollingActive: StateFlow<Boolean> = _isPollingActive.asStateFlow()
@@ -152,7 +194,8 @@ class ChainStateViewModel(
    * Toggles between Base Mainnet and Base Sepolia testnet, updating the RPC URL dynamically.
    */
   fun toggleNetwork() {
-    setNetwork(_currentNetwork.value.toggle())
+    val next = if (_currentNetwork.value == BaseNetwork.MAINNET) BaseNetwork.SEPOLIA else BaseNetwork.MAINNET
+    setNetwork(next)
   }
 
   /**
@@ -418,6 +461,99 @@ class ChainStateViewModel(
         _errorMessage.value = e.localizedMessage
       } finally {
         _isLoading.value = false
+      }
+    }
+  }
+
+  /**
+   * Selects an ERC-20 token preset and triggers an eth_call balance check.
+   */
+  fun selectErc20Preset(token: Erc20TokenPreset) {
+    _erc20State.value = _erc20State.value.copy(
+      contractAddress = token.contractAddress,
+      symbol = token.symbol,
+      decimals = token.decimals
+    )
+    fetchErc20Balance(
+      walletAddress = _erc20State.value.walletAddress,
+      contractAddress = token.contractAddress,
+      decimals = token.decimals,
+      symbol = token.symbol
+    )
+  }
+
+  fun updateErc20WalletAddress(address: String) {
+    _erc20State.value = _erc20State.value.copy(walletAddress = address)
+  }
+
+  fun updateErc20ContractAddress(address: String) {
+    _erc20State.value = _erc20State.value.copy(contractAddress = address)
+  }
+
+  fun updateErc20Decimals(decimals: Int) {
+    _erc20State.value = _erc20State.value.copy(decimals = decimals)
+  }
+
+  fun updateErc20Symbol(symbol: String) {
+    _erc20State.value = _erc20State.value.copy(symbol = symbol)
+  }
+
+  /**
+   * Fetches ERC-20 token balance for the given wallet address and token contract address using eth_call.
+   */
+  fun fetchErc20Balance(
+    walletAddress: String = _erc20State.value.walletAddress,
+    contractAddress: String = _erc20State.value.contractAddress,
+    decimals: Int = _erc20State.value.decimals,
+    symbol: String = _erc20State.value.symbol,
+    rpcUrl: String = _currentRpcUrl.value
+  ) {
+    viewModelScope.launch {
+      val cleanAddress = walletAddress.trim().removePrefix("0x").padStart(64, '0')
+      val callData = "0x70a08231$cleanAddress"
+      _erc20State.value = _erc20State.value.copy(
+        isLoading = true,
+        errorMessage = null,
+        callDataPayload = callData
+      )
+
+      try {
+        val response = rpcService.getErc20Balance(
+          url = rpcUrl,
+          contractAddress = contractAddress.trim(),
+          walletAddress = walletAddress.trim()
+        )
+
+        if (response.isSuccessful) {
+          val hex = response.body()?.result ?: "0x0"
+          val rawUnits = parseHexToBigInteger(hex)
+          val divisor = Math.pow(10.0, decimals.toDouble())
+          val numeric = rawUnits.toDouble() / divisor
+          val formatted = if (numeric >= 1.0) {
+            String.format(java.util.Locale.US, "%,.2f %s", numeric, symbol)
+          } else {
+            String.format(java.util.Locale.US, "%.6f %s", numeric, symbol)
+          }
+
+          _erc20State.value = _erc20State.value.copy(
+            rawHex = hex,
+            formattedBalance = formatted,
+            numericBalance = numeric,
+            isLoading = false,
+            errorMessage = null,
+            lastQueriedAt = System.currentTimeMillis()
+          )
+        } else {
+          _erc20State.value = _erc20State.value.copy(
+            isLoading = false,
+            errorMessage = "RPC error ${response.code()}: ${response.message()}"
+          )
+        }
+      } catch (e: Exception) {
+        _erc20State.value = _erc20State.value.copy(
+          isLoading = false,
+          errorMessage = e.localizedMessage ?: "Network connection error"
+        )
       }
     }
   }

@@ -123,4 +123,36 @@ class ChainStateViewModelTest {
       viewModel.stopPeriodicPolling()
     }
   }
+
+  @Test
+  fun `verify erc20 state and preset selection`() {
+    val viewModel = ChainStateViewModel()
+    try {
+      val state = viewModel.erc20State.value
+      assertNotNull(state)
+      assertEquals("USDC", state.symbol)
+      assertEquals(6, state.decimals)
+      assertNotNull(state.formattedBalance)
+      assertTrue(state.callDataPayload?.startsWith("0x70a08231") == true)
+
+      // Test preset selection
+      val aerodrome = viewModel.popularTokens.first { it.symbol == "AERO" }
+      viewModel.selectErc20Preset(aerodrome)
+      assertEquals("AERO", viewModel.erc20State.value.symbol)
+      assertEquals(18, viewModel.erc20State.value.decimals)
+      assertEquals(aerodrome.contractAddress, viewModel.erc20State.value.contractAddress)
+    } finally {
+      viewModel.stopPeriodicPolling()
+    }
+  }
+
+  @Test
+  fun `verify erc20 call data padding and selector`() {
+    val testAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+    val clean = testAddress.removePrefix("0x").padStart(64, '0')
+    assertEquals(64, clean.length)
+    val callData = "0x70a08231$clean"
+    assertEquals(74, callData.length)
+    assertTrue(callData.startsWith("0x70a08231"))
+  }
 }

@@ -232,6 +232,36 @@ class BaseNetworkClient(
   }
 
   /**
+   * Fetches an ERC-20 token balance for a given contract and wallet address via eth_call.
+   */
+  suspend fun fetchErc20Balance(
+    rpcUrl: String,
+    contractAddress: String,
+    walletAddress: String,
+    decimals: Int = 18
+  ): Result<Pair<String, Double>> = withContext(Dispatchers.IO) {
+    try {
+      val response = rpcService.getErc20Balance(
+        url = rpcUrl,
+        contractAddress = contractAddress,
+        walletAddress = walletAddress
+      )
+
+      if (response.isSuccessful) {
+        val hex = response.body()?.result ?: "0x0"
+        val rawUnits = parseHexToBigInteger(hex)
+        val divisor = Math.pow(10.0, decimals.toDouble())
+        val numericBalance = rawUnits.toDouble() / divisor
+        Result.success(Pair(hex, numericBalance))
+      } else {
+        Result.failure(Exception("HTTP error ${response.code()}: ${response.message()}"))
+      }
+    } catch (e: Exception) {
+      Result.failure(e)
+    }
+  }
+
+  /**
    * Dispatches arbitrary JSON-RPC requests via Retrofit's raw response body and measures duration.
    */
   suspend fun executeRawRpc(

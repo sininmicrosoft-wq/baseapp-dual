@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,15 +25,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -437,6 +444,14 @@ fun ChainDashboardScreen(
       }
     }
 
+    // ERC-20 Token Balance Checker (eth_call)
+    item {
+      Erc20TokenBalanceCard(
+        viewModel = viewModel,
+        modifier = Modifier.fillMaxWidth()
+      )
+    }
+
     // 1. RECHARTS-STYLE GAS PRICE AREA CHART
     item {
       RechartsGasAreaChart(
@@ -780,3 +795,378 @@ fun RechartsBlockBarChart(
     }
   }
 }
+
+/**
+ * UI Component displaying ERC-20 token balance fetched via eth_call (balanceOf: 0x70a08231).
+ * Features quick token presets (USDC, cbBTC, AERO, VIRTUAL, WETH), custom address inputs,
+ * live RPC execution, formatted balance display, and raw return hex inspection.
+ */
+@Composable
+fun Erc20TokenBalanceCard(
+  viewModel: ChainStateViewModel,
+  modifier: Modifier = Modifier
+) {
+  val state by viewModel.erc20State.collectAsState()
+  val context = LocalContext.current
+  val clipboardManager = LocalClipboardManager.current
+  val popularTokens = viewModel.popularTokens
+
+  Card(
+    colors = CardDefaults.cardColors(containerColor = DarkSurface),
+    shape = RoundedCornerShape(16.dp),
+    border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceBorder),
+    modifier = modifier
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      // Header
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .size(32.dp)
+              .background(BaseBlue.copy(alpha = 0.2f), CircleShape)
+              .border(1.dp, BaseCyan, CircleShape),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = "20",
+              color = BaseCyan,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.ExtraBold,
+              fontFamily = FontFamily.Monospace
+            )
+          }
+
+          Column {
+            Text(
+              text = "ERC-20 Token Balance",
+              color = TextPrimary,
+              fontSize = 14.sp,
+              fontWeight = FontWeight.Bold
+            )
+            Text(
+              text = "Direct eth_call (balanceOf: 0x70a08231)",
+              color = TextSecondary,
+              fontSize = 10.sp
+            )
+          }
+        }
+
+        Box(
+          modifier = Modifier
+            .background(BaseBlue.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+            .border(1.dp, BaseCyan.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+          Text(
+            text = "eth_call",
+            color = BaseCyan,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      // Preset Token Selector Chips
+      Text(
+        text = "POPULAR BASE TOKENS",
+        color = TextTertiary,
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold
+      )
+      Spacer(modifier = Modifier.height(6.dp))
+
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+      ) {
+        popularTokens.forEach { token ->
+          val isSelected = state.contractAddress.equals(token.contractAddress, ignoreCase = true)
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(8.dp))
+              .background(if (isSelected) BaseBlue else DarkSurfaceElevated)
+              .border(
+                1.dp,
+                if (isSelected) BaseCyan else DarkSurfaceBorder,
+                RoundedCornerShape(8.dp)
+              )
+              .clickable { viewModel.selectErc20Preset(token) }
+              .padding(horizontal = 10.dp, vertical = 6.dp)
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+              Text(
+                text = token.symbol,
+                color = if (isSelected) Color.White else TextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+              )
+              Text(
+                text = "(${token.decimals}d)",
+                color = if (isSelected) Color.White.copy(alpha = 0.7f) else TextSecondary,
+                fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace
+              )
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      // Input: Wallet Address
+      OutlinedTextField(
+        value = state.walletAddress,
+        onValueChange = { viewModel.updateErc20WalletAddress(it) },
+        label = { Text("Wallet Address (0x...)", color = TextSecondary, fontSize = 11.sp) },
+        placeholder = { Text("0x...", color = TextTertiary) },
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedTextColor = TextPrimary,
+          unfocusedTextColor = TextPrimary,
+          focusedBorderColor = BaseBlue,
+          unfocusedBorderColor = DarkSurfaceBorder
+        ),
+        textStyle = androidx.compose.ui.text.TextStyle(
+          fontFamily = FontFamily.Monospace,
+          fontSize = 11.sp
+        ),
+        modifier = Modifier.fillMaxWidth()
+      )
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      // Input: Contract Address
+      OutlinedTextField(
+        value = state.contractAddress,
+        onValueChange = { viewModel.updateErc20ContractAddress(it) },
+        label = { Text("Token Contract Address (0x...)", color = TextSecondary, fontSize = 11.sp) },
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedTextColor = TextPrimary,
+          unfocusedTextColor = TextPrimary,
+          focusedBorderColor = BaseBlue,
+          unfocusedBorderColor = DarkSurfaceBorder
+        ),
+        textStyle = androidx.compose.ui.text.TextStyle(
+          fontFamily = FontFamily.Monospace,
+          fontSize = 11.sp
+        ),
+        modifier = Modifier.fillMaxWidth()
+      )
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      // Decimals and Symbol controls
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        OutlinedTextField(
+          value = state.symbol,
+          onValueChange = { viewModel.updateErc20Symbol(it) },
+          label = { Text("Symbol", color = TextSecondary, fontSize = 11.sp) },
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            focusedBorderColor = BaseBlue,
+            unfocusedBorderColor = DarkSurfaceBorder
+          ),
+          modifier = Modifier.weight(1f)
+        )
+
+        OutlinedTextField(
+          value = state.decimals.toString(),
+          onValueChange = { it.toIntOrNull()?.let { d -> viewModel.updateErc20Decimals(d) } },
+          label = { Text("Decimals", color = TextSecondary, fontSize = 11.sp) },
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            focusedBorderColor = BaseBlue,
+            unfocusedBorderColor = DarkSurfaceBorder
+          ),
+          modifier = Modifier.weight(1f)
+        )
+      }
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      // Query Button
+      Button(
+        onClick = { viewModel.fetchErc20Balance() },
+        enabled = !state.isLoading,
+        colors = ButtonDefaults.buttonColors(
+          containerColor = BaseBlue,
+          contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        if (state.isLoading) {
+          CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            color = Color.White,
+            strokeWidth = 2.dp
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Querying eth_call...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        } else {
+          Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+          )
+          Spacer(modifier = Modifier.width(6.dp))
+          Text(
+            text = "Query Balance via eth_call",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+          )
+        }
+      }
+
+      // Result Display Box
+      if (state.formattedBalance != null || state.errorMessage != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(DarkSurfaceElevated)
+            .border(
+              1.dp,
+              if (state.errorMessage != null) OpRed.copy(alpha = 0.5f) else BaseBlue.copy(alpha = 0.4f),
+              RoundedCornerShape(12.dp)
+            )
+            .padding(14.dp)
+        ) {
+          Column {
+            if (state.errorMessage != null) {
+              Text(
+                text = "Query Failed: ${state.errorMessage}",
+                color = OpRed,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace
+              )
+            } else {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column {
+                  Text(
+                    text = "TOKEN BALANCE",
+                    color = TextTertiary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                  )
+                  Text(
+                    text = state.formattedBalance ?: "0.00",
+                    color = AccentGreen,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = FontFamily.Monospace
+                  )
+                }
+
+                Box(
+                  modifier = Modifier
+                    .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                  Text(
+                    text = "LIVE ON BASE",
+                    color = AccentGreen,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                  )
+                }
+              }
+
+              Spacer(modifier = Modifier.height(10.dp))
+
+              // Raw eth_call payload & return hex details
+              Column(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .background(Color(0xFF090D16), RoundedCornerShape(8.dp))
+                  .padding(10.dp)
+              ) {
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Text(
+                    text = "RAW RETURN HEX (uint256)",
+                    color = TextTertiary,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                  )
+
+                  state.rawHex?.let { raw ->
+                    IconButton(
+                      onClick = {
+                        clipboardManager.setText(AnnotatedString(raw))
+                        Toast.makeText(context, "Hex copied to clipboard", Toast.LENGTH_SHORT).show()
+                      },
+                      modifier = Modifier.size(20.dp)
+                    ) {
+                      Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy Hex",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(12.dp)
+                      )
+                    }
+                  }
+                }
+
+                Text(
+                  text = state.rawHex ?: "0x0",
+                  color = BaseCyan,
+                  fontSize = 10.sp,
+                  fontFamily = FontFamily.Monospace,
+                  maxLines = 1
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                  text = "CALLDATA: balanceOf(address)",
+                  color = TextTertiary,
+                  fontSize = 8.sp,
+                  fontWeight = FontWeight.Bold
+                )
+                Text(
+                  text = state.callDataPayload ?: "0x70a08231...",
+                  color = Color(0xFFA5B4FC),
+                  fontSize = 9.sp,
+                  fontFamily = FontFamily.Monospace,
+                  maxLines = 1
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
