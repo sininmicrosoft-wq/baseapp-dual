@@ -138,4 +138,21 @@ class BaseRpcClientTest {
     assertTrue(methodNames.contains("getTransactionByHash"))
     assertTrue(methodNames.contains("getTransactionReceipt"))
   }
+
+  @Test
+  fun `verify RetrofitClient configuration file initialization`() {
+    val service = com.example.data.rpc.RetrofitClient.baseRpcService
+    assertNotNull(service)
+
+    val retrofit = com.example.data.rpc.RetrofitClient.retrofit
+    assertNotNull(retrofit)
+    assertEquals("https://mainnet.base.org/", retrofit.baseUrl().toString())
+
+    val okHttpClient = com.example.data.rpc.RetrofitClient.okHttpClient
+    assertNotNull(okHttpClient)
+    assertEquals(15000L, okHttpClient.connectTimeoutMillis.toLong())
+    assertTrue(okHttpClient.interceptors.isNotEmpty())
+
+    assertEquals("https://mainnet.base.org/", com.example.data.rpc.RetrofitClient.BASE_CHAIN_RPC_URL)
+  }
 }
