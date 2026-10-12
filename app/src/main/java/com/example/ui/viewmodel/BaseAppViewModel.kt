@@ -16,7 +16,7 @@ import com.example.data.model.RpcCallRecord
 import com.example.data.model.SolutionCategory
 import com.example.data.model.StablecoinConfig
 import com.example.data.model.TokenAsset
-import com.example.data.rpc.BaseRpcClient
+import com.example.data.rpc.BaseNetworkClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +29,7 @@ import kotlin.random.Random
 
 class BaseAppViewModel(application: Application) : AndroidViewModel(application) {
   private val db = BaseAppDatabase.getDatabase(application)
-  private val rpcClient = BaseRpcClient()
+  private val networkClient = BaseNetworkClient()
 
   // Active Network Chain
   private val _selectedChain = MutableStateFlow(NetworkChain.BaseMainnet)
@@ -312,13 +312,17 @@ class BaseAppViewModel(application: Application) : AndroidViewModel(application)
   fun triggerRpcRefresh() {
     viewModelScope.launch {
       val rpc = _selectedChain.value.rpcUrl
-      val liveBlock = rpcClient.getBlockNumber(rpc)
-      if (liveBlock != null && liveBlock > 0) {
-        _latestBlock.value = liveBlock
+      val blockResult = networkClient.fetchBlockNumber(rpc)
+      blockResult.getOrNull()?.let { liveBlock ->
+        if (liveBlock > 0) {
+          _latestBlock.value = liveBlock
+        }
       }
-      val liveGas = rpcClient.getGasPriceGwei(rpc)
-      if (liveGas != null && liveGas > 0.0) {
-        _gasPriceGwei.value = liveGas
+      val gasResult = networkClient.fetchGasPriceGwei(rpc)
+      gasResult.getOrNull()?.let { liveGas ->
+        if (liveGas > 0.0) {
+          _gasPriceGwei.value = liveGas
+        }
       }
     }
   }
@@ -484,7 +488,7 @@ class BaseAppViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       _isRpcLoading.value = true
       val currentChain = _selectedChain.value
-      val (isSuccess, response, duration) = rpcClient.callRawRpc(currentChain.rpcUrl, method, params)
+      val (isSuccess, response, duration) = networkClient.executeRawRpc(currentChain.rpcUrl, method, params)
       _lastRpcResult.value = RpcCallRecord(
         method = method,
         params = params,
