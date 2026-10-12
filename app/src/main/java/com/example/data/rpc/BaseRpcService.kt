@@ -13,7 +13,7 @@ import retrofit2.http.Url
 
 /**
  * Retrofit service interface defining JSON-RPC methods for Base Chain endpoints,
- * specifically providing eth_blockNumber, eth_gasPrice, and eth_getTransactionByHash.
+ * supporting dynamic URLs and network-aware calls for Base Mainnet and Base Sepolia.
  */
 interface BaseRpcService {
 
@@ -164,4 +164,32 @@ interface BaseRpcService {
     @Url url: String,
     @Body request: JsonRpcRequest
   ): Response<JsonRpcResponse<Any>>
+
+  // ========================================================
+  // 5. NETWORK-AWARE HELPERS FOR BASE MAINNET & SEPOLIA
+  // ========================================================
+
+  /**
+   * Queries eth_blockNumber dynamically targeting the specified BaseNetwork.
+   */
+  suspend fun getBlockNumber(network: BaseNetwork): Response<JsonRpcResponse<String>> =
+    eth_blockNumber(url = network.rpcUrl)
+
+  /**
+   * Queries eth_gasPrice dynamically targeting the specified BaseNetwork.
+   */
+  suspend fun getGasPrice(network: BaseNetwork): Response<JsonRpcResponse<String>> =
+    eth_gasPrice(url = network.rpcUrl)
+
+  /**
+   * Queries eth_getTransactionByHash dynamically targeting the specified BaseNetwork.
+   */
+  suspend fun getTransactionByHash(
+    network: BaseNetwork,
+    txHash: String
+  ): Response<JsonRpcResponse<TransactionRpcDetails>> =
+    eth_getTransactionByHash(
+      url = network.rpcUrl,
+      request = JsonRpcRequest(method = "eth_getTransactionByHash", params = listOf(txHash))
+    )
 }

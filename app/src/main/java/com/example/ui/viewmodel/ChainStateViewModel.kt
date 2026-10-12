@@ -2,6 +2,7 @@ package com.example.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.rpc.BaseNetwork
 import com.example.data.rpc.BaseRpcService
 import com.example.data.rpc.RetrofitClient
 import com.example.data.rpc.model.JsonRpcRequest
@@ -32,8 +33,8 @@ data class BlockTrendPoint(
 
 /**
  * ViewModel managing the state of network data fetched via BaseRpcService,
- * including an automatic periodic polling mechanism (every 10 seconds)
- * that refreshes the block number and gas price data.
+ * supporting toggling between Base Mainnet and Base Sepolia testnet with
+ * dynamic RPC URL updates and 10-second periodic polling.
  */
 class ChainStateViewModel(
   private val rpcService: BaseRpcService = RetrofitClient.baseRpcService
@@ -43,6 +44,14 @@ class ChainStateViewModel(
     /** Default automatic polling interval set to 10 seconds (10,000ms) */
     const val DEFAULT_POLLING_INTERVAL_MS: Long = 10_000L
   }
+
+  // Active Base Network (Mainnet or Sepolia)
+  private val _currentNetwork = MutableStateFlow(BaseNetwork.MAINNET)
+  val currentNetwork: StateFlow<BaseNetwork> = _currentNetwork.asStateFlow()
+
+  // Dynamic active RPC URL
+  private val _currentRpcUrl = MutableStateFlow(BaseNetwork.MAINNET.rpcUrl)
+  val currentRpcUrl: StateFlow<String> = _currentRpcUrl.asStateFlow()
 
   // Current Block Number (decoded Long)
   private val _currentBlockNumber = MutableStateFlow<Long?>(null)
@@ -91,18 +100,45 @@ class ChainStateViewModel(
   private var pollingJob: Job? = null
 
   init {
-    seedInitialTrends()
+    seedInitialTrends(_currentNetwork.value)
     // Automatically start 10-second periodic polling on initialization
-    startPeriodicPolling(DEFAULT_POLLING_INTERVAL_MS)
+    startPeriodicPolling(DEFAULT_POLLING_INTERVAL_MS, _currentRpcUrl.value)
   }
 
-  private fun seedInitialTrends() {
+  /**
+   * Toggles between Base Mainnet and Base Sepolia testnet, updating the RPC URL dynamically.
+   */
+  fun toggleNetwork() {
+    setNetwork(_currentNetwork.value.toggle())
+  }
+
+  /**
+   * Switches to the specified Base network, updating the dynamic RPC URL and refreshing data.
+   */
+  fun setNetwork(network: BaseNetwork) {
+    if (_currentNetwork.value == network && _currentBlockNumber.value != null) return
+    _currentNetwork.value = network
+    _currentRpcUrl.value = network.rpcUrl
+    seedInitialTrends(network)
+
+    if (_isPollingActive.value) {
+      startPeriodicPolling(_pollingIntervalMs.value, network.rpcUrl)
+    } else {
+      fetchChainData(network.rpcUrl)
+    }
+  }
+
+  private fun seedInitialTrends(network: BaseNetwork) {
     val now = System.currentTimeMillis()
-    val baseBlock = 22_891_450L
+    val baseBlock = if (network == BaseNetwork.MAINNET) 22_891_450L else 18_450_200L
     val seededGas = mutableListOf<GasPricePoint>()
     val seededBlocks = mutableListOf<BlockTrendPoint>()
 
-    val gasValues = listOf(0.0038, 0.0042, 0.0040, 0.0049, 0.0055, 0.0046, 0.0041, 0.0039, 0.0043, 0.0047, 0.0042)
+    val gasValues = if (network == BaseNetwork.MAINNET) {
+      listOf(0.0038, 0.0042, 0.0040, 0.0049, 0.0055, 0.0046, 0.0041, 0.0039, 0.0043, 0.0047, 0.0042)
+    } else {
+      listOf(0.0012, 0.0015, 0.0011, 0.0018, 0.0022, 0.0014, 0.0010, 0.0012, 0.0013, 0.0016, 0.0011)
+    }
     val txCounts = listOf(45, 62, 58, 89, 110, 74, 53, 48, 67, 85, 71)
 
     for (i in gasValues.indices) {
@@ -121,7 +157,7 @@ class ChainStateViewModel(
         BlockTrendPoint(
           blockNumber = block,
           txCount = txCounts[i],
-          gasUsedPercent = 40.0 + (gas * 10000.0) % 50.0,
+          gasUsedPercent = 35.0 + (gas * 10000.0) % 50.0,
           timestampMs = time
         )
       )
@@ -133,11 +169,11 @@ class ChainStateViewModel(
 
   /**
    * Starts periodic polling (default: every 10 seconds) that automatically
-   * fetches fresh block height and gas price data from BaseRpcService.
+   * fetches fresh block height and gas price data from BaseRpcService using the dynamic RPC URL.
    */
   fun startPeriodicPolling(
     intervalMs: Long = DEFAULT_POLLING_INTERVAL_MS,
-    rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL
+    rpcUrl: String = _currentRpcUrl.value
   ) {
     _pollingIntervalMs.value = intervalMs
     _isPollingActive.value = true
@@ -160,7 +196,10 @@ class ChainStateViewModel(
   }
 
   /** Alias for startPeriodicPolling */
-  fun startPolling(intervalMs: Long = DEFAULT_POLLING_INTERVAL_MS, rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+  fun startPolling(
+    intervalMs: Long = DEFAULT_POLLING_INTERVAL_MS,
+    rpcUrl: String = _currentRpcUrl.value
+  ) {
     startPeriodicPolling(intervalMs, rpcUrl)
   }
 
@@ -170,9 +209,9 @@ class ChainStateViewModel(
   }
 
   /**
-   * Fetches both block number and gas price concurrently using BaseRpcService.
+   * Fetches both block number and gas price concurrently using BaseRpcService via dynamic RPC URL.
    */
-  fun fetchChainData(rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+  fun fetchChainData(rpcUrl: String = _currentRpcUrl.value) {
     viewModelScope.launch {
       _isLoading.value = true
       _errorMessage.value = null
@@ -257,9 +296,9 @@ class ChainStateViewModel(
   }
 
   /**
-   * Fetches only the current block number via eth_blockNumber.
+   * Fetches only the current block number via eth_blockNumber using dynamic RPC URL.
    */
-  fun fetchBlockNumber(rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+  fun fetchBlockNumber(rpcUrl: String = _currentRpcUrl.value) {
     viewModelScope.launch {
       _isLoading.value = true
       try {
@@ -284,9 +323,9 @@ class ChainStateViewModel(
   }
 
   /**
-   * Fetches only current gas price via eth_gasPrice.
+   * Fetches only current gas price via eth_gasPrice using dynamic RPC URL.
    */
-  fun fetchGasPrice(rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+  fun fetchGasPrice(rpcUrl: String = _currentRpcUrl.value) {
     viewModelScope.launch {
       _isLoading.value = true
       try {
@@ -313,9 +352,9 @@ class ChainStateViewModel(
   }
 
   /**
-   * Fetches transaction details by transaction hash via eth_getTransactionByHash.
+   * Fetches transaction details by transaction hash via eth_getTransactionByHash using dynamic RPC URL.
    */
-  fun fetchTransactionDetails(txHash: String, rpcUrl: String = RetrofitClient.BASE_CHAIN_RPC_URL) {
+  fun fetchTransactionDetails(txHash: String, rpcUrl: String = _currentRpcUrl.value) {
     viewModelScope.launch {
       _isLoading.value = true
       try {

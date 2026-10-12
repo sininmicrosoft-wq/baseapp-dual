@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.rpc.BaseNetwork
 import com.example.ui.theme.AccentGreen
 import com.example.ui.theme.BaseBlue
 import com.example.ui.theme.BaseCyan
@@ -99,6 +101,8 @@ fun ChainDashboardScreen(
 
   val isLivePolling by viewModel.isPollingActive.collectAsState()
   val pollingIntervalMs by viewModel.pollingIntervalMs.collectAsState()
+  val currentNetwork by viewModel.currentNetwork.collectAsState()
+  val currentRpcUrl by viewModel.currentRpcUrl.collectAsState()
 
   LazyColumn(
     modifier = modifier
@@ -109,7 +113,7 @@ fun ChainDashboardScreen(
   ) {
     item {
       Spacer(modifier = Modifier.height(4.dp))
-      // Header Card with Live Status & Polling Controls
+      // Header Card with Network Toggling, Live Status & Polling Controls
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(16.dp),
@@ -117,6 +121,59 @@ fun ChainDashboardScreen(
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
+          // Network Switcher Bar
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(
+              modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(DarkSurfaceElevated)
+                .border(1.dp, DarkSurfaceBorder, RoundedCornerShape(20.dp))
+                .padding(3.dp),
+              horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+              BaseNetwork.values().forEach { net ->
+                val isSelected = net == currentNetwork
+                Box(
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isSelected) BaseBlue else Color.Transparent)
+                    .clickable { viewModel.setNetwork(net) }
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                  Text(
+                    text = if (net.isTestnet) "Base Sepolia" else "Base Mainnet",
+                    color = if (isSelected) Color.White else TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                  )
+                }
+              }
+            }
+
+            Box(
+              modifier = Modifier
+                .background(
+                  if (currentNetwork.isTestnet) AccentGreen.copy(alpha = 0.15f) else BaseCyan.copy(alpha = 0.15f),
+                  RoundedCornerShape(6.dp)
+                )
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+              Text(
+                text = "ID: ${currentNetwork.chainId}",
+                color = if (currentNetwork.isTestnet) AccentGreen else BaseCyan,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -124,15 +181,16 @@ fun ChainDashboardScreen(
           ) {
             Column {
               Text(
-                text = "Base Chain Metrics Dashboard",
+                text = currentNetwork.displayName,
                 color = TextPrimary,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
               )
               Text(
-                text = "JSON-RPC Telemetry via BaseRpcService",
-                color = TextSecondary,
-                fontSize = 11.sp
+                text = currentRpcUrl,
+                color = Color(0xFFA5B4FC),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp
               )
             }
 

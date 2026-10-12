@@ -160,4 +160,49 @@ class ChainStateViewModelTest {
     viewModel.startPeriodicPolling(10_000L)
     assertEquals(true, viewModel.isPollingActive.value)
   }
+
+  @Test
+  fun `verify toggling between Base Mainnet and Base Sepolia updates network and RPC URL`() = runTest {
+    val fakeService = FakeBaseRpcService()
+    val viewModel = ChainStateViewModel(rpcService = fakeService)
+
+    // Initial state: Base Mainnet
+    assertEquals(com.example.data.rpc.BaseNetwork.MAINNET, viewModel.currentNetwork.value)
+    assertEquals("https://mainnet.base.org/", viewModel.currentRpcUrl.value)
+    assertEquals(8453L, viewModel.currentNetwork.value.chainId)
+    assertEquals(false, viewModel.currentNetwork.value.isTestnet)
+
+    // Toggle to Base Sepolia testnet
+    viewModel.toggleNetwork()
+    testDispatcher.scheduler.advanceUntilIdle()
+
+    assertEquals(com.example.data.rpc.BaseNetwork.SEPOLIA, viewModel.currentNetwork.value)
+    assertEquals("https://sepolia.base.org/", viewModel.currentRpcUrl.value)
+    assertEquals(84532L, viewModel.currentNetwork.value.chainId)
+    assertEquals(true, viewModel.currentNetwork.value.isTestnet)
+
+    // Toggle back to Base Mainnet
+    viewModel.toggleNetwork()
+    testDispatcher.scheduler.advanceUntilIdle()
+
+    assertEquals(com.example.data.rpc.BaseNetwork.MAINNET, viewModel.currentNetwork.value)
+    assertEquals("https://mainnet.base.org/", viewModel.currentRpcUrl.value)
+
+    // Direct setNetwork call
+    viewModel.setNetwork(com.example.data.rpc.BaseNetwork.SEPOLIA)
+    testDispatcher.scheduler.advanceUntilIdle()
+    assertEquals(com.example.data.rpc.BaseNetwork.SEPOLIA, viewModel.currentNetwork.value)
+  }
+
+  @Test
+  fun `verify BaseRpcService network-aware helper methods`() = runTest {
+    val fakeService = FakeBaseRpcService()
+    val mainnetBlockResponse = fakeService.getBlockNumber(com.example.data.rpc.BaseNetwork.MAINNET)
+    val sepoliaBlockResponse = fakeService.getBlockNumber(com.example.data.rpc.BaseNetwork.SEPOLIA)
+    val mainnetGasResponse = fakeService.getGasPrice(com.example.data.rpc.BaseNetwork.MAINNET)
+
+    assertEquals("0x15d4872", mainnetBlockResponse.body()?.result)
+    assertEquals("0x15d4872", sepoliaBlockResponse.body()?.result)
+    assertEquals("0x3b9aca00", mainnetGasResponse.body()?.result)
+  }
 }
