@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -40,6 +41,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +66,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.rpc.BaseNetwork
@@ -103,6 +107,9 @@ fun ChainDashboardScreen(
   val pollingIntervalMs by viewModel.pollingIntervalMs.collectAsState()
   val currentNetwork by viewModel.currentNetwork.collectAsState()
   val currentRpcUrl by viewModel.currentRpcUrl.collectAsState()
+  val gasLimitInput by viewModel.gasLimitInput.collectAsState()
+  val estimatedCostEth by viewModel.estimatedCostEth.collectAsState()
+  val estimatedCostUsd by viewModel.estimatedCostUsd.collectAsState()
 
   LazyColumn(
     modifier = modifier
@@ -302,6 +309,129 @@ fun ChainDashboardScreen(
               fontFamily = FontFamily.Monospace
             )
             Text("Base Chain L2", color = Color(0xFFA5B4FC), fontSize = 10.sp)
+          }
+        }
+      }
+    }
+
+    // Transaction Gas Limit Fee Estimator
+    item {
+      Card(
+        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceBorder),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column {
+              Text("Transaction Fee Estimator", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+              Text(
+                "Calculates cost based on live RPC gas price (${String.format(Locale.US, "%.4f", gasPriceGwei ?: 0.0042)} Gwei)",
+                color = TextSecondary,
+                fontSize = 10.sp
+              )
+            }
+
+            Box(
+              modifier = Modifier
+                .background(AccentGreen.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+              Text(
+                text = "SUB-CENT",
+                color = AccentGreen,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          OutlinedTextField(
+            value = gasLimitInput,
+            onValueChange = { viewModel.setGasLimit(it) },
+            label = { Text("Gas Limit (units)", color = TextSecondary) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedTextColor = TextPrimary,
+              unfocusedTextColor = TextPrimary,
+              focusedBorderColor = BaseBlue,
+              unfocusedBorderColor = DarkSurfaceBorder
+            ),
+            modifier = Modifier.fillMaxWidth()
+          )
+
+          Spacer(modifier = Modifier.height(8.dp))
+
+          // Preset gas limit buttons
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+          ) {
+            listOf(
+              "21k (ETH)" to 21_000L,
+              "65k (USDC)" to 65_000L,
+              "150k (Swap)" to 150_000L,
+              "280k (Batch)" to 280_000L
+            ).forEach { (label, preset) ->
+              val isSelected = gasLimitInput == preset.toString()
+              Box(
+                modifier = Modifier
+                  .weight(1f)
+                  .clip(RoundedCornerShape(8.dp))
+                  .background(if (isSelected) BaseBlue else DarkSurfaceElevated)
+                  .border(1.dp, if (isSelected) BaseCyan else DarkSurfaceBorder, RoundedCornerShape(8.dp))
+                  .clickable { viewModel.setGasLimitPreset(preset) }
+                  .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+              ) {
+                Text(
+                  text = label,
+                  color = if (isSelected) Color.White else TextSecondary,
+                  fontSize = 9.sp,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+              }
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // Result Display
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(DarkSurfaceElevated, RoundedCornerShape(10.dp))
+              .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column {
+              Text("ESTIMATED TX COST (ETH)", color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+              Text(
+                text = "${String.format(Locale.US, "%.9f", estimatedCostEth ?: 0.0)} ETH",
+                color = AccentGreen,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+              )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+              Text("ESTIMATED USD", color = TextTertiary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+              Text(
+                text = "$${String.format(Locale.US, "%.5f", estimatedCostUsd ?: 0.0)}",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+              )
+            }
           }
         }
       }

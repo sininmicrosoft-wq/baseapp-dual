@@ -33,8 +33,8 @@ data class BlockTrendPoint(
 
 /**
  * ViewModel managing the state of network data fetched via BaseRpcService,
- * supporting toggling between Base Mainnet and Base Sepolia testnet with
- * dynamic RPC URL updates and 10-second periodic polling.
+ * supporting toggling between Base Mainnet and Base Sepolia, 10-second periodic polling,
+ * and gas limit fee estimation in ETH and USD.
  */
 class ChainStateViewModel(
   private val rpcService: BaseRpcService = RetrofitClient.baseRpcService
@@ -43,6 +43,8 @@ class ChainStateViewModel(
   companion object {
     /** Default automatic polling interval set to 10 seconds (10,000ms) */
     const val DEFAULT_POLLING_INTERVAL_MS: Long = 10_000L
+    /** Reference ETH price for USD conversion */
+    const val ETH_PRICE_USD: Double = 2850.0
   }
 
   // Active Base Network (Mainnet or Sepolia)
@@ -64,6 +66,18 @@ class ChainStateViewModel(
   // Current Gas Price in Wei
   private val _gasPriceWei = MutableStateFlow<BigInteger?>(null)
   val gasPriceWei: StateFlow<BigInteger?> = _gasPriceWei.asStateFlow()
+
+  // User-configurable gas limit input
+  private val _gasLimitInput = MutableStateFlow("21000")
+  val gasLimitInput: StateFlow<String> = _gasLimitInput.asStateFlow()
+
+  // Calculated estimated transaction cost in ETH
+  private val _estimatedCostEth = MutableStateFlow<Double?>(null)
+  val estimatedCostEth: StateFlow<Double?> = _estimatedCostEth.asStateFlow()
+
+  // Calculated estimated transaction cost in USD
+  private val _estimatedCostUsd = MutableStateFlow<Double?>(null)
+  val estimatedCostUsd: StateFlow<Double?> = _estimatedCostUsd.asStateFlow()
 
   // Historical gas price trend points for visualization
   private val _gasPriceHistory = MutableStateFlow<List<GasPricePoint>>(emptyList())
@@ -101,8 +115,37 @@ class ChainStateViewModel(
 
   init {
     seedInitialTrends(_currentNetwork.value)
+    recalculateEstimatedCost()
     // Automatically start 10-second periodic polling on initialization
     startPeriodicPolling(DEFAULT_POLLING_INTERVAL_MS, _currentRpcUrl.value)
+  }
+
+  /**
+   * Sets the gas limit input string and recalculates the estimated transaction cost in ETH and USD.
+   */
+  fun setGasLimit(limitString: String) {
+    _gasLimitInput.value = limitString.filter { it.isDigit() }
+    recalculateEstimatedCost()
+  }
+
+  /**
+   * Sets a standard preset gas limit (e.g. 21,000 for standard ETH transfer, 65,000 for ERC-20, 150,000 for DEX swap).
+   */
+  fun setGasLimitPreset(presetLimit: Long) {
+    _gasLimitInput.value = presetLimit.toString()
+    recalculateEstimatedCost()
+  }
+
+  /**
+   * Recalculates estimated transaction cost based on current gas limit and gas price:
+   * Cost in ETH = (gasLimit * gasPriceGwei) / 10^9
+   */
+  private fun recalculateEstimatedCost() {
+    val limit = _gasLimitInput.value.toLongOrNull() ?: 21_000L
+    val gwei = _gasPriceGwei.value ?: 0.0042
+    val costEth = (limit * gwei) / 1_000_000_000.0
+    _estimatedCostEth.value = costEth
+    _estimatedCostUsd.value = costEth * ETH_PRICE_USD
   }
 
   /**
@@ -259,6 +302,9 @@ class ChainStateViewModel(
           _errorMessage.value = "Failed to fetch gas price: ${gasResponse.code()}"
         }
 
+        // Recalculate transaction cost in ETH with the updated gas price
+        recalculateEstimatedCost()
+
         // Record historical trend point
         if (fetchedBlock != null && fetchedGasGwei != null) {
           recordTrendPoint(fetchedBlock!!, fetchedGasGwei!!)
@@ -338,6 +384,7 @@ class ChainStateViewModel(
             val wei = parseHexToBigInteger(hex)
             _gasPriceWei.value = wei
             _gasPriceGwei.value = wei.toDouble() / 1_000_000_000.0
+            recalculateEstimatedCost()
             _lastUpdated.value = System.currentTimeMillis()
           }
         } else {
