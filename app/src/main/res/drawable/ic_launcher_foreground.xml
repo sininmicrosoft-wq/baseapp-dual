@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Superchain Halo ring -->
+    <path
+        android:strokeColor="#66FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 32,54 A 22,22 0 1,1 76,54 A 22,22 0 1,1 32,54" />
+
+    <!-- Iconic Base Solid Circle Arc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,34 A 20,20 0 1,0 74,54 L 62,54 A 8,8 0 1,1 54,46 Z" />
+
+    <!-- Bright Cyan Accent Node / Flashblock Spark -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M 54,46 A 8,8 0 1,0 62,54 L 54,54 Z" />
+
+    <!-- Center Bridge Core Dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,50 A 4,4 0 1,0 54,58 A 4,4 0 1,0 54,50" />
+</vector>

@@ -1,0 +1,6 @@
+{
+  "name": "BaseApp",
+  "description": "Native portal & toolkit for Base Chain and the OP Superchain. Explore DeFi, tokenize B20 assets, issue stablecoins, accept payments with Base Pay, simulate Flashblocks & gas, test RPC, and manage Smart Wallets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
